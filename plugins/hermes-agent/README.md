@@ -322,6 +322,7 @@ Access control follows Hermes' native platform model:
 | `INLINE_SETTINGS_PATH` | JSON settings file for per-chat `/threads` overrides. `/threads` shows native Auto/On buttons; `reset` clears the chat override back to the global default. Defaults next to `INLINE_STATE_PATH`; `.env`-like paths are refused. |
 | `INLINE_SYSTEM_EVENTS` | Delivers Inline lifecycle events such as edits, deletes, and participant changes as synthetic messages. Defaults to `false`. Reactions on bot messages are always delivered. |
 | `INLINE_REACTIONS` | Shows 👀 while Hermes handles an inbound message, then ✅ on success or ❌ on failure. Cancellation clears the working marker. Defaults to `false`. |
+| `INLINE_CRON_MENTION_PREFIX` | Literal Inline Markdown, such as `[@Jack](inline://user?id=42)`, placed at the start of each Hermes cron delivery so it notifies that user and opens the chat. Skipped when the brief already starts with it or Hermes cron notifications are off (`cron.delivery.notify: false`); needs `parse_markdown` enabled. Applies to cron sends through the running gateway. Defaults to empty (off). |
 | `INLINE_PARSE_MARKDOWN` | Controls whether supported outbound Inline Markdown is parsed. Defaults to `true`; `false` preserves the supplied syntax literally. |
 | `INLINE_SYNC_COMMANDS` | Syncs Hermes slash commands into Inline's native `/` bot command menu on gateway connect. Defaults to `true`. |
 | `INLINE_COMMAND_LIMIT` | Caps native Inline bot command sync. Must be `1` through `100`; defaults to `100`. |
@@ -368,8 +369,8 @@ Equivalent Hermes YAML can use `allow_from`, `allowed_users`,
 `observed_context_limit`, `observe_unmentioned_messages`, `settings_path`, and
 `reactions` under the Inline platform config. Operational settings such
 as `base_url`, `parse_markdown`, `media_max_mb`, `upload_max_mb`,
-`state_path`, `sidecar_port`, `connect_timeout_ms`, `sync_commands`, and
-`command_limit` can also be set there.
+`state_path`, `sidecar_port`, `connect_timeout_ms`, `sync_commands`,
+`cron_mention_prefix`, and `command_limit` can also be set there.
 Prefer Hermes YAML for behavioral settings. Environment variables remain supported for compatibility and secret-backed deployment inputs.
 Use a JSON list for mention regexes that contain commas, for example
 `["hermes\\b[:,]?"]`.

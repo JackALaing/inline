@@ -910,6 +910,11 @@ class InlineAdapter(BasePlatformAdapter):
         _configure_tool_sidecar(bind=self._sidecar_bind, port=self._sidecar_port, token=self._sidecar_token)
         self._node_bin = _find_node_bin() or "node"
         self._parse_markdown = _truthy(extra.get("parse_markdown") if "parse_markdown" in extra else inline_env("INLINE_PARSE_MARKDOWN"), True)
+        # Literal Inline Markdown (e.g. "[@Jack](inline://user?id=42)") that starts every
+        # notifying cron delivery. Inline only surfaces a bot post as a notification that opens
+        # the chat when it mentions the user, so unmentioned scheduled briefs go unnoticed.
+        cron_mention_prefix = extra.get("cron_mention_prefix") if "cron_mention_prefix" in extra else inline_env("INLINE_CRON_MENTION_PREFIX")
+        self._cron_mention_prefix = cron_mention_prefix.strip() if isinstance(cron_mention_prefix, str) else ""
         self._media_max_bytes = int(
             _normalize_positive_float(
                 extra.get("media_max_mb") if "media_max_mb" in extra else inline_env("INLINE_MEDIA_MAX_MB"),
@@ -4890,6 +4895,7 @@ class InlineAdapter(BasePlatformAdapter):
         metadata: Optional[Dict[str, Any]] = None,
         actions: Optional[Dict[str, Any]] = None,
     ) -> SendResult:
+        content = self._with_cron_mention(content, metadata)
         metadata = self._with_turn_thread(chat_id, reply_to, metadata)
         target = self._target_for(chat_id, metadata)
         agent_action_target = parse_inline_agent_action_reply_target(reply_to)
@@ -5641,6 +5647,21 @@ class InlineAdapter(BasePlatformAdapter):
         if parent_message_id:
             out["parent_message_id"] = parent_message_id
         return out
+
+    def _with_cron_mention(self, content: str, metadata: Optional[Dict[str, Any]]) -> str:
+        """Start a Hermes cron delivery with ``cron_mention_prefix`` exactly once.
+
+        Hermes marks cron sends with ``job_id`` in the send metadata and ``notify: False`` when
+        the operator muted cron notifications. Applied before chunking, so only the first chunk
+        carries the mention, and skipped when the brief already opens with it."""
+        prefix = self._cron_mention_prefix
+        meta = metadata or {}
+        if not prefix or not meta.get("job_id") or meta.get("notify") is False:
+            return content
+        body = (content or "").strip()
+        if not body or body.startswith(prefix):
+            return content
+        return f"{prefix}\n\n{body}"
 
     def format_message(self, content: str) -> str:
         # parseMarkdown=false means literal input at every Inline API boundary.

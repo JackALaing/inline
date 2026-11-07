@@ -6188,6 +6188,41 @@ async def assert_send_voice_accepts_hermes_voice_marker():
 
 asyncio.run(assert_send_voice_accepts_hermes_voice_marker())
 
+async def assert_cron_mention_prefix():
+    prefix = "[@Alice](inline://user?id=42)"
+    calls = []
+
+    async def fake_send_sidecar(path, body):
+        calls.append((path, body))
+        return SendResult(success=True, message_id=str(len(calls)), raw_response=None)
+
+    adapter = InlineAdapter(PlatformConfig(extra={**base_extra, "cron_mention_prefix": f"  {prefix} "}))
+    adapter._send_sidecar = fake_send_sidecar
+
+    async def sent_text(content, metadata):
+        calls.clear()
+        result = await adapter.send("chat:10", content, metadata=metadata)
+        assert result.success is True
+        return [body["text"] for _, body in calls]
+
+    assert await sent_text("Morning brief", {"job_id": "job-1", "notify": True}) == [f"{prefix}\n\nMorning brief"]
+    # Ordinary replies, muted cron notifications and already-mentioned briefs stay unchanged.
+    assert await sent_text("Plain reply", None) == ["Plain reply"]
+    assert await sent_text("Muted", {"job_id": "job-1", "notify": False}) == ["Muted"]
+    assert await sent_text(f"{prefix} hi", {"job_id": "job-1"}) == [f"{prefix} hi"]
+    assert await sent_text(f"Ask {prefix} later", {"job_id": "job-1"}) == [f"{prefix}\n\nAsk {prefix} later"]
+    # Only the first chunk of a long brief carries the mention.
+    chunks = await sent_text("x " * 5000, {"job_id": "job-1"})
+    assert len(chunks) > 1 and chunks[0].startswith(prefix) and all(prefix not in c for c in chunks[1:])
+
+    unconfigured = InlineAdapter(PlatformConfig(extra=base_extra))
+    unconfigured._send_sidecar = fake_send_sidecar
+    calls.clear()
+    assert (await unconfigured.send("chat:10", "Brief", metadata={"job_id": "job-1"})).success is True
+    assert calls[-1][1]["text"] == "Brief"
+
+asyncio.run(assert_cron_mention_prefix())
+
 async def assert_standalone_sender():
     calls = []
     originals = {
